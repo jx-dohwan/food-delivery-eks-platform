@@ -1,0 +1,26 @@
+groups:
+- name: application-dependency-errors
+  interval: 30s
+  rules:
+  - alert: ApplicationDatabaseConnectionFailures
+    expr: sum(count_over_time({environment="dev",service="was"} | json | event="database.failed"
+      [5m])) > 2
+    for: 1m
+    labels:
+      severity: warning
+      namespace: app
+    annotations:
+      summary: Repeated database errors; inspect rotation and dependency runbook
+      owner: project-operator
+      runbook_id: observability-triage
+  - alert: ApplicationS3AccessDenied
+    expr: sum(count_over_time({environment="dev",service="was"} | json | event="s3.failed"
+      | error_code="AccessDenied" [5m])) > 0
+    for: 1m
+    labels:
+      severity: warning
+      namespace: app
+    annotations:
+      summary: Private upload permission failure; do not enable public access
+      owner: project-operator
+      runbook_id: observability-triage

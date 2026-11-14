@@ -1,0 +1,8 @@
+# Populate from the matching environment's Terraform output before Full Deploy.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: adot-collector
+  namespace: app
+  annotations:
+    eks.amazonaws.com/role-arn: ""

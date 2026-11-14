@@ -1,0 +1,78 @@
+fullnameOverride: alloy
+image:
+  tag: v1.21.2
+crds:
+  create: false
+alloy:
+  configMap:
+    create: false
+    name: alloy-config
+    key: config.alloy
+  storagePath: /var/lib/alloy
+  enableReporting: false
+  extraEnv:
+  - name: LOG_NAMESPACE
+    value: app
+  - name: CLUSTER_NAME
+    value: food-delivery-dev
+  securityContext:
+    runAsUser: 0
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  mounts:
+    extra:
+    - name: podlogs
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: positions
+      mountPath: /var/lib/alloy
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+  livenessProbe:
+    httpGet:
+      path: /-/healthy
+      port: 12345
+    initialDelaySeconds: 20
+    periodSeconds: 30
+controller:
+  type: daemonset
+  nodeSelector:
+    kubernetes.io/os: linux
+  tolerations:
+  - key: workload
+    operator: Equal
+    value: system
+    effect: NoSchedule
+  terminationGracePeriodSeconds: 60
+  volumes:
+    extra:
+    - name: podlogs
+      hostPath:
+        path: /var/log/pods
+        type: Directory
+    - name: positions
+      hostPath:
+        path: /var/lib/food-delivery-alloy
+        type: DirectoryOrCreate
+rbac:
+  create: false
+serviceAccount:
+  create: true
+  name: alloy
+  automountServiceAccountToken: false
+configReloader:
+  enabled: false
+serviceMonitor:
+  enabled: true
+  additionalLabels:
+    release: observability

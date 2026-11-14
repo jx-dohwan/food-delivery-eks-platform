@@ -1,0 +1,48 @@
+# TEST ONLY. Not referenced by any application Kustomization or ArgoCD Application.
+# Zero replicas by default. Activate a small count only during approved Full Deploy.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: karpenter-scale-test
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karpenter-scale-test
+  namespace: karpenter-scale-test
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: karpenter-scale-test
+  template:
+    metadata:
+      labels:
+        app: karpenter-scale-test
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        food-delivery/capacity: application
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: scheduling-only
+          # Reuse the pinned WAS image with an idle process; no API or CPU burn.
+          image: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/was:ffa32ee974e7c460419250864b9524aa4d571212
+          command: [node, -e, "setInterval(() => {}, 60000)"]
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]

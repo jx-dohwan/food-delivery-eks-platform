@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- ../../base
+
+patches:
+- path: dev-email-capture-patch.yaml
+- path: runtime-network-patch.json
+  target:
+    kind: NetworkPolicy
+    name: (was-dependencies|migration-database)
+- path: tracing-irsa-patch.yaml
+- path: was-irsa-patch.yaml
+- path: ingress-patch.yaml
+- path: waf-patch.yaml
+- path: runtime-bindings-patch.yaml
+
+images:
+- name: food-delivery-was
+  newName: ecr-registry.invalid/was
+  newTag: d60e34f3bdf26e25ed6164b144553c5899a246fa
+- name: food-delivery-web
+  newName: ecr-registry.invalid/web
+  newTag: d60e34f3bdf26e25ed6164b144553c5899a246fa

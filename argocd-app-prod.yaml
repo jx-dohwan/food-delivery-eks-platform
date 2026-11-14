@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: food-delivery-prod
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/jx-dohwan/food-delivery-eks-platform.git'
+    # prod는 main 병합 후 태그/릴리즈로 고정하는 것을 권장
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app-prod
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: was-deployment
+      namespace: app-prod
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    # 초기에는 수동 sync 권장. 안정화 후 automated 활성화.
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+    # automated:
+    #   prune: true
+    #   selfHeal: true

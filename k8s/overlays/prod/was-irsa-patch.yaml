@@ -1,0 +1,9 @@
+# Publish the real environment-specific ARN using render-workload-irsa.py.
+# Empty until provisioned: AWS calls fail closed, with IMDS fallback disabled.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: food-delivery-was
+  namespace: app
+  annotations:
+    eks.amazonaws.com/role-arn: ""

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: was-config
+data:
+  NODE_ENV: "prod"
+  PORT: "3000"
+  TZ: "Asia/Seoul"
+  BASE_URL: "https://www.domain.invalid"  # injected at deploy
+  NAME: "food-delivery-was"
+  DB_PORT: "3306"
+  DB_TLS: "true"
+  REDIS_PORT: "6379"
+  REDIS_TLS: "true"
+  JWT_ACCESS_EXPIRATION: "15m"
+  JWT_REFRESH_EXPIRATION: "7d"
+  SKIP_EMAIL_NOTIFICATION: "false"

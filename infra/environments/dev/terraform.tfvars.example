@@ -1,0 +1,25 @@
+# Copy to terraform.tfvars (git-ignored; do NOT commit real values or secrets)
+# Required, account/owner specific:
+allowed_account_ids         = ["123456789012"]
+terraform_state_bucket_name = "example-terraform-state-bucket"
+route53_zone_name           = "example.com"
+dev_domain_name             = "dev.example.com"
+www_domain_name             = "www.example.com"
+# slack_webhook_url = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+# slack_alert_tags  = "<!here>"   # or "<!channel>" / "<@U12345678>"
+# enable_secret_rotation = true
+# enable_ops_monitoring  = true   # ALB/RDS/Redis CloudWatch alarms → Slack (no Prometheus)
+#
+# --- 보안 ($0 상시 / WAF만 단기) ---
+# office_cidr = "YOUR.PUBLIC.IP/32"   # 비우면 Bastion SSH 닫힘(SSM 전용)
+# enable_access_analyzer = true
+# enable_waf = false                  # 실측 때만 true → 403 확인 → 즉시 false
+# Full Deploy: use only owned, verified application resources (not tfstate).
+# was_aws_access = {
+#   s3  = { bucket_name = "replace-with-verified-dev-bucket", encryption = "AES256" }
+#   ses = { identity = "example.com", from_address = "sender@example.com" }
+# }
+# enable_karpenter = true
+# karpenter_ami_id = "ami-REPLACE_WITH_VERIFIED_ID"
+# karpenter_ami_verified = false       # true only after actual AMI/region/owner review
+# metrics_server_kubelet_tls_verified = false # enable only after validating the kubelet CA and SAN

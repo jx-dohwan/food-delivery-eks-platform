@@ -1,0 +1,8 @@
+# Prod infrastructure is incomplete; preflight must not accept placeholder IAM.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eso-service-account
+  namespace: app
+  annotations:
+    eks.amazonaws.com/role-arn: ""

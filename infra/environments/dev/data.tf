@@ -1,0 +1,6 @@
+data "aws_region" "current" {}
+data "aws_caller_identity" "runtime" {}
+
+data "aws_availability_zones" "available_az" {
+  state = "available"
+}

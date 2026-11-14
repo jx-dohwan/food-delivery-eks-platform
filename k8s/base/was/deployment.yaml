@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: was-deployment
+  namespace: app
+  labels:
+    app: was
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  minReadySeconds: 10
+  progressDeadlineSeconds: 300
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: was
+  template:
+    metadata:
+      labels:
+        app: was
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels: {app: was}
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {app: was}
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: food-delivery-was
+      automountServiceAccountToken: false
+      containers:
+        - name: was
+          # Base에서는 계정 ID 없이 논리적 이미지명만 선언
+          image: food-delivery-was:ffa32ee974e7c460419250864b9524aa4d571212
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - containerPort: 3000
+          # 설정값과 비밀값을 분리하여 자동 주입
+          env:
+            - name: AWS_EC2_METADATA_DISABLED
+              value: "true"
+          envFrom:
+            - configMapRef:
+                name: was-config
+            - secretRef:
+                name: was-db-secret
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - node
+                  - -e
+                  - |
+                    const http = require('node:http');
+                    let scheduled = false;
+                    const finish = code => {
+                      if (scheduled) return;
+                      scheduled = true;
+                      setTimeout(() => { process.exitCode = code; }, 5000);
+                    };
+                    const req = http.request({
+                      host: '127.0.0.1', port: 3000, path: '/health/drain',
+                      method: 'POST', agent: false, timeout: 2000
+                    }, res => {
+                      res.resume();
+                      res.on('end', () => finish(res.statusCode === 200 ? 0 : 1));
+                      res.on('error', () => finish(1));
+                    });
+                    req.on('timeout', () => req.destroy());
+                    req.on('error', () => finish(1));
+                    req.end();
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 30
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+            successThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 3000
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+            successThreshold: 1

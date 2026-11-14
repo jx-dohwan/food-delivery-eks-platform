@@ -1,0 +1,152 @@
+# Only the application namespace is isolated. EKS Add-on configuration enables
+# enforcement; these manifests never manage aws-node or system namespaces.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: prometheus-to-was
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  podSelector:
+    matchLabels:
+      app: was
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              observability.food-delivery/component: prometheus
+      ports:
+        - {protocol: TCP, port: 3000}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: application-dns
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [web, was, was-migration]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-traffic
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  podSelector:
+    matchLabels: {app: web}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # ALB has dynamic private source addresses. NetworkPolicy cannot reference
+    # an AWS SG; the node SG restricts this port to alb_sg, including health checks.
+    - ports:
+        - {protocol: TCP, port: 80}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: was}
+      ports:
+        - {protocol: TCP, port: 3000}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: was-ingress
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  podSelector:
+    matchLabels: {app: was}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: web}
+      ports:
+        - {protocol: TCP, port: 3000}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: was-dependencies
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  podSelector:
+    matchLabels: {app: was}
+  policyTypes: [Egress]
+  egress:
+    # The VPC CIDR is an environment network boundary, not a database endpoint
+    # IP. A regression test compares it to dev's Terraform default. SG references
+    # restrict the actual Proxy/Redis destinations; Aurora denies node_sg.
+    - to:
+        - ipBlock: {cidr: 10.0.0.0/16}
+      ports:
+        - {protocol: TCP, port: 3306}
+        - {protocol: TCP, port: 6379}
+    # WAS SDK uses public S3/SES/STS endpoints via S3 Gateway/NAT. ECR private
+    # endpoint traffic is node image-pull traffic, outside these Pod policies.
+    # Exclude private/link-local destinations so HTTPS is not an implicit
+    # cross-namespace Pod/API-server allow. No AWS endpoint IPs are pinned.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, 127.0.0.0/8]
+      ports:
+        - {protocol: TCP, port: 443}
+---
+# Explicit migration egress. Verify Job enforcement with the pinned CNI at Full
+# Deploy: AWS overview and troubleshooting pages differ on supported controllers.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: migration-database
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  podSelector:
+    matchLabels: {app: was-migration}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: {cidr: 10.0.0.0/16}
+      ports:
+        - {protocol: TCP, port: 3306}

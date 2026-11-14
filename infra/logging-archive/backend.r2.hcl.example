@@ -1,0 +1,10 @@
+# Copy to backend.r2.hcl (git-ignored) and run:
+#   terraform init -backend-config=backend.r2.hcl
+# Separate archive state key; never the dev key.
+bucket              = "example-terraform-state-bucket"
+key                 = "terraform/logging-archive/dev/terraform.tfstate"
+region              = "ap-northeast-2"
+profile             = "my-profile"
+encrypt             = true
+use_lockfile        = true
+allowed_account_ids = ["123456789012"]

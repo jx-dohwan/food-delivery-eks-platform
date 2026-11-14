@@ -1,0 +1,5 @@
+!rds-ca-bundle.pem
+/build/
+/.package.*/
+/rotation_lambda.zip
+/slack_notify_lambda.zip

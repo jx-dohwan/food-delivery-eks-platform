@@ -1,0 +1,9 @@
+# Placeholder only: the real value is injected at deploy time by scripts/render-argocd-application.py.
+# Invalid on purpose: without injection the ALB controller refuses the Ingress instead of running without WAF.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
+  namespace: app
+  annotations:
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:ap-northeast-2:000000000000:regional/webacl/injected-at-deploy/00000000-0000-0000-0000-000000000000"

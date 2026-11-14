@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: was-config
+  namespace: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+  NODE_ENV: "dev"
+  PORT: "3000"
+  TZ: "Asia/Seoul"
+  BASE_URL: "https://dev.domain.invalid"  # injected at deploy
+  NAME: "food-delivery-was"
+  DB_PORT: "3306"
+  DB_TLS: "true"
+  REDIS_PORT: "6379"
+  # ElastiCache transit_encryption_enabled=true 와 동기화
+  REDIS_TLS: "true"
+  JWT_ACCESS_EXPIRATION: "1h"
+  JWT_REFRESH_EXPIRATION: "7d"
+  # SES 미구성/샌드박스에서도 회원가입 API가 500으로 막히지 않도록 (dev)
+  SKIP_EMAIL_NOTIFICATION: "true"
+  OTEL_TRACES_EXPORTER: "otlp"
+  OTEL_METRICS_EXPORTER: "none"
+  OTEL_LOGS_EXPORTER: "none"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://adot-collector:4318/v1/traces"
+  OTEL_TRACES_SAMPLER_ARG: "0.1"

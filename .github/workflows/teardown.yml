@@ -1,0 +1,20 @@
+name: Safe Teardown (operator instructions)
+
+# Infrastructure deletion is an operator task. Never assume the ECR-only CI role.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  operator-instructions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain operator-only teardown
+        run: |
+          echo "::error::Automated teardown is disabled: the GitHub CI role has ECR push permissions only."
+          echo "Use an approved Terraform operator identity locally, with EKS access."
+          echo "Review the Terraform operator identity and target before running scripts/safe-teardown.sh."
+          echo "The script accepts only infra/environments/dev and never tears down bootstrap IAM/OIDC."
+          exit 1

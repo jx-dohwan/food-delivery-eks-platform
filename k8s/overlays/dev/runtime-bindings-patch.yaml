@@ -1,0 +1,158 @@
+# Placeholder only: the real value is injected at deploy time by scripts/render-argocd-application.py.
+{
+  "apiVersion": "v1",
+  "kind": "ServiceAccount",
+  "metadata": {
+    "name": "eso-service-account",
+    "namespace": "app",
+    "annotations": {
+      "eks.amazonaws.com/role-arn": "arn:aws:iam::000000000000:role/external-secrets-role"
+    }
+  }
+}
+---
+{
+  "apiVersion": "external-secrets.io/v1",
+  "kind": "ExternalSecret",
+  "metadata": {
+    "name": "was-db-external-secret",
+    "namespace": "app",
+    "annotations": {
+      "argocd.argoproj.io/sync-wave": "-2"
+    }
+  },
+  "spec": {
+    "refreshInterval": "5m",
+    "secretStoreRef": {
+      "name": "aws-secrets-manager-store",
+      "kind": "SecretStore"
+    },
+    "target": {
+      "name": "was-db-secret",
+      "creationPolicy": "Owner"
+    },
+    "data": [
+      {
+        "secretKey": "DB_HOST",
+        "remoteRef": {
+          "key": "rds-aurora-credentials-connection",
+          "property": "host"
+        }
+      },
+      {
+        "secretKey": "DB_PORT",
+        "remoteRef": {
+          "key": "rds-aurora-credentials",
+          "property": "port"
+        }
+      },
+      {
+        "secretKey": "DB_USERNAME",
+        "remoteRef": {
+          "key": "rds-aurora-credentials",
+          "property": "username"
+        }
+      },
+      {
+        "secretKey": "DB_USER_NAME",
+        "remoteRef": {
+          "key": "rds-aurora-credentials",
+          "property": "username"
+        }
+      },
+      {
+        "secretKey": "DB_PASSWORD",
+        "remoteRef": {
+          "key": "rds-aurora-credentials",
+          "property": "password"
+        }
+      },
+      {
+        "secretKey": "DB_DATABASE",
+        "remoteRef": {
+          "key": "rds-aurora-credentials",
+          "property": "dbname"
+        }
+      },
+      {
+        "secretKey": "REDIS_HOST",
+        "remoteRef": {
+          "key": "rds-aurora-credentials-connection",
+          "property": "redis_host"
+        }
+      },
+      {
+        "secretKey": "REDIS_PORT",
+        "remoteRef": {
+          "key": "rds-aurora-credentials-connection",
+          "property": "redis_port"
+        }
+      },
+      {
+        "secretKey": "JWT_ACCESS_SECRET",
+        "remoteRef": {
+          "key": "rds-aurora-credentials",
+          "property": "jwt_access_secret"
+        }
+      },
+      {
+        "secretKey": "JWT_REFRESH_SECRET",
+        "remoteRef": {
+          "key": "rds-aurora-credentials",
+          "property": "jwt_refresh_secret"
+        }
+      }
+    ]
+  }
+}
+---
+{
+  "apiVersion": "external-secrets.io/v1",
+  "kind": "SecretStore",
+  "metadata": {
+    "name": "aws-secrets-manager-store",
+    "namespace": "app"
+  },
+  "spec": {
+    "provider": {
+      "aws": {
+        "service": "SecretsManager",
+        "region": "ap-northeast-2",
+        "auth": {
+          "jwt": {
+            "serviceAccountRef": {
+              "name": "eso-service-account"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+---
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "was-config",
+    "namespace": "app"
+  },
+  "data": {
+    "DB_TLS": "true",
+    "REDIS_TLS": "true",
+    "RATE_LIMIT_ALB_PROXY_CIDRS": "10.0.0.0/24,10.0.1.0/24,10.0.2.0/24",
+    "RATE_LIMIT_WEB_PROXY_CIDRS": "10.0.10.0/24,10.0.11.0/24,10.0.12.0/24"
+  }
+}
+---
+{
+  "apiVersion": "networking.k8s.io/v1",
+  "kind": "Ingress",
+  "metadata": {
+    "name": "main-ingress",
+    "namespace": "app",
+    "annotations": {
+      "alb.ingress.kubernetes.io/security-groups": "sg-00000000000000000"
+    }
+  }
+}

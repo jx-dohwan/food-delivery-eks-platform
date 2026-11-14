@@ -1,0 +1,14 @@
+{
+  "karpenter": {
+    "version": "1.14.1",
+    "repository": "oci://public.ecr.aws/karpenter",
+    "chart_layer_digest": "sha256:d5b62605a4cdad0e6fe9eb0b1a4332abb44606fb0f02a3fc6d780ac6ea5533b6",
+    "controller_image": "public.ecr.aws/karpenter/controller:1.14.1@sha256:445baefaaa689029cc12ac1f659b916b0b82fb14308ce536f8521fcf079116fa"
+  },
+  "karpenter-crd": {
+    "version": "1.14.1",
+    "repository": "oci://public.ecr.aws/karpenter",
+    "chart_layer_digest": "sha256:06759bdbd553e3bbf707e00cc56ca2efa0842f7f4388a172b8b57fb4f6798776"
+  },
+  "source": "https://github.com/aws/karpenter-provider-aws/tree/v1.14.1"
+}

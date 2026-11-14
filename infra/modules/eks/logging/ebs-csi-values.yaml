@@ -1,0 +1,61 @@
+image:
+  tag: v1.67.2
+controller:
+  replicaCount: 1
+  region: ap-northeast-2
+  nodeSelector: {}
+  resources:
+    requests:
+      cpu: 20m
+      memory: 48Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+  env:
+  - name: AWS_EC2_METADATA_DISABLED
+    value: 'true'
+  serviceAccount:
+    name: ebs-csi-controller-sa
+    annotations: {}
+  extraVolumeTags:
+    Project: food-delivery
+    Purpose: loki-wal
+node:
+  nodeSelector:
+    kubernetes.io/os: linux
+  resources:
+    requests:
+      cpu: 20m
+      memory: 40Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  enableWindows: false
+sidecars:
+  provisioner:
+    resources: &id001
+      requests:
+        cpu: 10m
+        memory: 24Mi
+      limits:
+        cpu: 100m
+        memory: 96Mi
+  attacher:
+    resources: *id001
+  resizer:
+    resources: *id001
+  livenessProbe:
+    resources: *id001
+  nodeDriverRegistrar:
+    resources: *id001
+storageClasses:
+- name: logging-gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: 'false'
+  volumeBindingMode: WaitForFirstConsumer
+  reclaimPolicy: Retain
+  allowVolumeExpansion: true
+  parameters:
+    type: gp3
+    encrypted: 'true'
+    csi.storage.k8s.io/fstype: ext4

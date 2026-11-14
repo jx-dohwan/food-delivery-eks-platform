@@ -1,0 +1,553 @@
+alertmanager:
+  enabled: true
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: slack
+      group_by:
+      - alertname
+      - namespace
+      - service
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    receivers:
+    - name: "null"
+    - name: slack
+      slack_configs:
+      - api_url_file: /etc/alertmanager/secrets/logging-alerts/slack-webhook
+        send_resolved: true
+        title: '[{{ .Status }}] {{ .CommonLabels.alertname }}'
+        text: '{{ range .Alerts }}Environment={{ .Labels.environment }} Severity={{
+          .Labels.severity }} Target={{ .Annotations.target }} Node={{ .Labels.node
+          }} Instance={{ .Labels.instance }} Pod={{ .Labels.pod }} Service={{ .Labels.service
+          }} UTC={{ .StartsAt }} Owner={{ .Annotations.owner }} Runbook={{ .Annotations.runbook_id
+          }} {{ .Annotations.summary }}
+
+          {{ end }}'
+    inhibit_rules:
+    - source_matchers:
+      - severity="critical"
+      target_matchers:
+      - severity="warning"
+      equal:
+      - alertname
+      - namespace
+      - service
+    - source_matchers:
+      - severity="critical"
+      - alert_family=~"was-errors|was-latency"
+      target_matchers:
+      - severity="warning"
+      - alert_family=~"was-errors|was-latency"
+      equal:
+      - environment
+      - namespace
+      - service
+      - alert_family
+  alertmanagerSpec:
+    replicas: 1
+    secrets:
+    - logging-alerts
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 150m
+        memory: 192Mi
+    storage:
+      emptyDir:
+        sizeLimit: 128Mi
+  serviceMonitor:
+    selfMonitor: true
+additionalPrometheusRulesMap:
+  logging-health:
+    groups:
+    - name: logging-health
+      interval: 30s
+      rules:
+      - alert: LokiScrapeMissing
+        expr: absent(up{job=~".*loki.*"}) or (sum(up{job=~".*loki.*"}) == 0)
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: Loki scrape missing; silence is not health
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: AlloyScrapeMissing
+        expr: absent(up{job=~".*alloy.*"}) or (sum(up{job=~".*alloy.*"}) == 0)
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: Alloy metrics missing
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: AlloyCoverageMissing
+        expr: kube_daemonset_status_number_ready{namespace="monitoring",daemonset="alloy"}
+          < kube_daemonset_status_desired_number_scheduled{namespace="monitoring",daemonset="alloy"}
+        for: 3m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: At least one scheduled node has no ready collector
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: AlloyEntriesDropped
+        expr: sum(increase(loki_write_dropped_entries_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: Collector retry budget exhausted; logs lost
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: AlloyWriteRetries
+        expr: sum(increase(loki_write_batch_retries_total[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: Collector is retrying writes
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: LokiIngestRejected
+        expr: sum(increase(loki_discarded_samples_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: Loki rejected samples; inspect reason labels
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: LokiHTTPFailures
+        expr: sum(rate(loki_request_duration_seconds_count{status_code=~"5.."}[5m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: Loki server errors; S3/CPU/memory are candidate causes
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: LokiPodNotReady
+        expr: kube_statefulset_status_replicas_ready{namespace="monitoring",statefulset="loki"}
+          < 1
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: Loki readiness failed even if metrics are reachable
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: LokiVolumeSpaceLow
+        expr: kubelet_volume_stats_available_bytes{namespace="monitoring",persistentvolumeclaim=~"storage-loki-.*"}
+          / kubelet_volume_stats_capacity_bytes{namespace="monitoring",persistentvolumeclaim=~"storage-loki-.*"}
+          < 0.2
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: Loki WAL/compactor disk below 20 percent free
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: LokiVolumeMetricsMissing
+        expr: absent(kubelet_volume_stats_capacity_bytes{namespace="monitoring",persistentvolumeclaim=~"storage-loki-.*"})
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: Persistent volume capacity telemetry missing; check CSI and kubelet
+            TLS
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: LokiS3Errors
+        expr: sum(increase(loki_s3_request_duration_seconds_count{status_code=~"403|5..|error|AccessDenied"}[5m]))
+          > 0
+        for: 1m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: Loki object-store requests failing; inspect exact bucket/role
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: AlloyDeliveryLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(loki_write_entry_propagation_latency_seconds_bucket[5m])))
+          > 30
+        for: 3m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: Collector delivery p95 exceeds 30 seconds
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: WASMetricsMissing
+        expr: absent(up{namespace=~"app|app-prod",service="nest"}) or (sum(up{namespace=~"app|app-prod",service="nest"})
+          == 0)
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: WASMetricsMissing
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/was
+      - alert: ApplicationReplicasUnavailable
+        expr: kube_deployment_status_replicas_available{namespace=~"app|app-prod",deployment=~"was-deployment|web-deployment"}
+          == 0
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+        annotations:
+          summary: ApplicationReplicasUnavailable
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/was
+      - alert: NodePressure
+        expr: kube_node_status_condition{condition=~"DiskPressure|MemoryPressure|PIDPressure",status="true"}
+          == 1
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: NodePressure
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: NodeFilesystemLow
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}
+          / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs",mountpoint="/"}
+          < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: NodeFilesystemLow
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: NodeInodesLow
+        expr: node_filesystem_files_free{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}
+          / node_filesystem_files{mountpoint="/",fstype!~"tmpfs|overlay|squashfs"}
+          < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: NodeInodesLow
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: NodeFilesystemMetricsMissing
+        expr: (kube_node_info unless on(node) count by(node) (node_filesystem_size_bytes{mountpoint="/"}))
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: NodeFilesystemMetricsMissing
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: WorkloadPending
+        expr: kube_pod_status_phase{namespace=~"app|app-prod",phase="Pending"} ==
+          1
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: WorkloadPending
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: WorkloadWaiting
+        expr: kube_pod_container_status_waiting_reason{namespace=~"app|app-prod",reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull"}
+          == 1
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: WorkloadWaiting
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: PersistentClaimPending
+        expr: kube_persistentvolumeclaim_status_phase{namespace="monitoring",phase="Pending"}
+          == 1
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: PersistentClaimPending
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: ScrapeFailed
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: ScrapeFailed
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: KSMTelemetryMissing
+        expr: absent(kube_node_info) or absent(kube_daemonset_status_desired_number_scheduled{namespace="monitoring",daemonset="alloy"})
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: KSMTelemetryMissing
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: ADOTMetricsMissing
+        expr: absent(up{component="adot"}) or (sum(up{component="adot"}) == 0)
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: ADOTMetricsMissing
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: KarpenterMetricsMissing
+        expr: (absent(up{component="karpenter"}) or (sum(up{component="karpenter"})
+          == 0)) and on() (sum(kube_deployment_spec_replicas{namespace="kube-system",deployment="karpenter"})
+          > 0)
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: KarpenterMetricsMissing
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: TracingSDKInactive
+        expr: food_delivery_tracing_enabled == 1 and on(job,instance) food_delivery_tracing_active
+          == 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: TracingSDKInactive
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: TracingExportFailed
+        expr: sum(increase(food_delivery_telemetry_failures_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: TracingExportFailed
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: AlertDeliveryFailed
+        expr: sum(increase(alertmanager_notifications_failed_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: AlertDeliveryFailed
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: PrometheusRuleEvaluationFailed
+        expr: sum(increase(prometheus_rule_evaluation_failures_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: PrometheusRuleEvaluationFailed
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: PrometheusTSDBLimitNear
+        expr: prometheus_tsdb_head_series > 100000
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: PrometheusTSDBLimitNear
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: WASHTTPServerErrors
+        expr: sum by(namespace) (increase(food_delivery_http_requests_total{namespace=~"app|app-prod",status_code=~"5.."}[5m]))
+          > 0
+        for: 1m
+        labels:
+          severity: warning
+          environment: dev
+          service: was
+          alert_family: was-errors
+        annotations:
+          summary: Completed WAS 5xx responses observed; inspect dependency events
+            and traces
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/was
+      - alert: ADOTExporterFailed
+        expr: sum(increase(otelcol_exporter_send_failed_spans{namespace=~"app|app-prod"}[5m]))
+          > 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: ADOTExporterFailed
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+      - alert: ADOTReceiverRefused
+        expr: sum(increase(otelcol_receiver_refused_spans{namespace=~"app|app-prod"}[5m]))
+          > 0
+        for: 2m
+        labels:
+          severity: warning
+          environment: dev
+        annotations:
+          summary: ADOTReceiverRefused
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/observability
+  service-sli:
+    groups:
+    - name: service-sli
+      interval: 30s
+      rules:
+      - alert: WASHTTPErrorRatioHigh
+        expr: ((sum by(namespace) (increase(food_delivery_http_requests_total{namespace=~"app|app-prod",status_code=~"5.."}[5m]))
+          / sum by(namespace) (increase(food_delivery_http_requests_total{namespace=~"app|app-prod"}[5m])))
+          > 0.01) and on(namespace) (sum by(namespace) (increase(food_delivery_http_requests_total{namespace=~"app|app-prod"}[5m]))
+          >= 100)
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+          service: was
+          alert_family: was-errors
+        annotations:
+          summary: WAS 5xx ratio exceeds 1 percent with at least 100 responses in
+            5 minutes
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/was
+      - alert: WASHTTPErrorRatioCritical
+        expr: ((sum by(namespace) (increase(food_delivery_http_requests_total{namespace=~"app|app-prod",status_code=~"5.."}[5m]))
+          / sum by(namespace) (increase(food_delivery_http_requests_total{namespace=~"app|app-prod"}[5m])))
+          > 0.05) and on(namespace) (sum by(namespace) (increase(food_delivery_http_requests_total{namespace=~"app|app-prod"}[5m]))
+          >= 100)
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+          service: was
+          alert_family: was-errors
+        annotations:
+          summary: WAS 5xx ratio exceeds 5 percent with at least 100 responses in
+            5 minutes
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/was
+      - alert: WASHTTPP95High
+        expr: (histogram_quantile(0.95, sum by(namespace,method,route,le) (rate(food_delivery_http_request_duration_seconds_bucket{namespace=~"app|app-prod",status_code=~"2.."}[5m])))
+          > 1) and on(namespace,method,route) (sum by(namespace,method,route) (increase(food_delivery_http_request_duration_seconds_count{namespace=~"app|app-prod",status_code=~"2.."}[5m]))
+          >= 100)
+        for: 5m
+        labels:
+          severity: warning
+          environment: dev
+          service: was
+          alert_family: was-latency
+        annotations:
+          summary: WAS successful-route p95 exceeds 1 second with at least 100 responses
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/was
+      - alert: WASHTTPP99Critical
+        expr: (histogram_quantile(0.99, sum by(namespace,method,route,le) (rate(food_delivery_http_request_duration_seconds_bucket{namespace=~"app|app-prod",status_code=~"2.."}[5m])))
+          > 2.5) and on(namespace,method,route) (sum by(namespace,method,route) (increase(food_delivery_http_request_duration_seconds_count{namespace=~"app|app-prod",status_code=~"2.."}[5m]))
+          >= 1000)
+        for: 2m
+        labels:
+          severity: critical
+          environment: dev
+          service: was
+          alert_family: was-latency
+        annotations:
+          summary: WAS successful-route p99 exceeds 2.5 seconds with at least 1000
+            responses
+          owner: project-operator
+          runbook_id: observability-triage
+          target: dev/was
+grafana:
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://observability-prometheus.monitoring.svc.cluster.local:9090
+        jsonData:
+          timeInterval: 30s
+          httpMethod: POST
+        isDefault: true
+        editable: false
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc.cluster.local:3100
+        editable: false
+        jsonData:
+          maxLines: 1000

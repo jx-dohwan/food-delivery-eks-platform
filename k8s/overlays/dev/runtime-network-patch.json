@@ -1,0 +1,7 @@
+[
+  {
+    "op": "replace",
+    "path": "/spec/egress/0/to/0/ipBlock/cidr",
+    "value": "10.0.0.0/16"
+  }
+]

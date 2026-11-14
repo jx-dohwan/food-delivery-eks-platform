@@ -1,0 +1,339 @@
+fullnameOverride: observability
+defaultRules:
+  create: false
+alertmanager:
+  enabled: false
+windowsMonitoring:
+  enabled: false
+thanosRuler:
+  enabled: false
+kubeApiServer:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+coreDns:
+  enabled: true
+  serviceMonitor:
+    authorization: null
+kubeDns:
+  enabled: false
+kubelet:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+prometheusOperator:
+  tls:
+    enabled: false
+  serviceMonitor:
+    selfMonitor: true
+  namespaces:
+    releaseNamespace: true
+  admissionWebhooks:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+prometheus:
+  serviceMonitor:
+    selfMonitor: true
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  serviceAccount:
+    createTokenSecret: false
+  networkPolicy:
+    enabled: true
+    egress:
+    - {}
+    ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: grafana
+            app.kubernetes.io/instance: observability
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: prometheus
+      ports:
+      - protocol: TCP
+        port: 9090
+  prometheusSpec:
+    replicas: 1
+    retention: 12h
+    retentionSize: 512MB
+    scrapeInterval: 30s
+    scrapeTimeout: 5s
+    evaluationInterval: 30s
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
+    storageSpec:
+      emptyDir:
+        sizeLimit: 1Gi
+    podMetadata:
+      labels:
+        observability.food-delivery/component: prometheus
+        observability-grafana-client: 'true'
+    serviceMonitorNamespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: monitoring
+    serviceMonitorSelector:
+      matchLabels:
+        release: observability
+    podMonitorSelector:
+      matchLabels:
+        release: observability
+    ruleSelector:
+      matchLabels:
+        release: observability
+    remoteWrite: []
+    additionalScrapeConfigs:
+    - job_name: kubelet-cadvisor
+      scheme: https
+      metrics_path: /metrics/cadvisor
+      kubernetes_sd_configs:
+      - role: node
+      authorization:
+        credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: false
+      relabel_configs:
+      - source_labels:
+        - __meta_kubernetes_node_name
+        target_label: node
+      metric_relabel_configs:
+      - source_labels:
+        - __name__
+        regex: container_cpu_usage_seconds_total|container_memory_working_set_bytes
+        action: keep
+      - source_labels:
+        - namespace
+        regex: app|app-prod
+        action: keep
+      - regex: id|image|name
+        action: labeldrop
+    - job_name: kube-apiserver
+      scheme: https
+      static_configs:
+      - targets:
+        - kubernetes.default.svc:443
+        labels:
+          component: apiserver
+      authorization:
+        credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        server_name: kubernetes.default.svc
+        insecure_skip_verify: false
+      metric_relabel_configs:
+      - source_labels:
+        - __name__
+        regex: apiserver_request_total|apiserver_request_duration_seconds_bucket|apiserver_current_inflight_requests|process_start_time_seconds
+        action: keep
+  additionalServiceMonitors:
+  - name: was
+    sampleLimit: 5000
+    namespaceSelector:
+      matchNames:
+      - app
+      - app-prod
+    selector:
+      matchLabels:
+        app: was
+    endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 5s
+  - name: adot
+    namespaceSelector:
+      matchNames:
+      - app
+      - app-prod
+    selector:
+      matchLabels:
+        app: adot-collector
+    sampleLimit: 5000
+    endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 5s
+      relabelings:
+      - targetLabel: component
+        replacement: adot
+  - name: karpenter
+    namespaceSelector:
+      matchNames:
+      - kube-system
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: karpenter
+        app.kubernetes.io/instance: karpenter
+    sampleLimit: 30000
+    endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 5s
+      relabelings:
+      - targetLabel: component
+        replacement: karpenter
+kubeStateMetrics:
+  enabled: true
+kube-state-metrics:
+  collectors:
+  - nodes
+  - pods
+  - deployments
+  - replicasets
+  - horizontalpodautoscalers
+  - daemonsets
+  - statefulsets
+  - persistentvolumes
+  - persistentvolumeclaims
+  metricLabelsAllowlist: []
+  metricAnnotationsAllowList: []
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 192Mi
+nodeExporter:
+  enabled: true
+prometheus-node-exporter:
+  hostNetwork: false
+  hostPID: false
+  hostRootFsMount:
+    enabled: true
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+  extraArgs:
+  - --collector.disable-defaults
+  - --collector.cpu
+  - --collector.meminfo
+  - --collector.uname
+  - --collector.filesystem
+  - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 96Mi
+  networkPolicy:
+    enabled: true
+    ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: prometheus
+      ports:
+      - protocol: TCP
+        port: 9100
+  prometheus:
+    monitor:
+      relabelings:
+      - sourceLabels:
+        - __meta_kubernetes_endpoint_node_name
+        targetLabel: node
+grafana:
+  enabled: true
+  automountServiceAccountToken: false
+  serviceMonitor:
+    enabled: true
+  defaultDashboardsEnabled: false
+  ingress:
+    enabled: false
+  service:
+    type: ClusterIP
+  persistence:
+    enabled: false
+  serviceAccount:
+    autoMount: false
+  rbac:
+    create: false
+  sidecar:
+    dashboards:
+      enabled: false
+    datasources:
+      enabled: false
+  initChownData:
+    enabled: false
+  testFramework:
+    enabled: false
+  networkPolicy:
+    enabled: true
+    allowExternal: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 768Mi
+  grafana.ini:
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+    auth.anonymous:
+      enabled: false
+    unified_alerting:
+      enabled: false
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://observability-prometheus.monitoring.svc.cluster.local:9090
+        jsonData:
+          timeInterval: 30s
+          httpMethod: POST
+        isDefault: true
+        editable: false
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: default
+        orgId: 1
+        folder: Food Delivery
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/default

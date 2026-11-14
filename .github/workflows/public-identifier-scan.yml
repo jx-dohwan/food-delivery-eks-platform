@@ -1,0 +1,24 @@
+name: Public Identifier Scan
+
+# Blocks real account IDs, domains, emails, resource IDs and credentials from tracked files.
+# Exact private values come from secrets and are masked; only file:line and rule names are printed.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Scan tracked files
+        env:
+          PUBLIC_IDENTIFIER_DENYLIST: |
+            ${{ secrets.AWS_ACCOUNT_ID }}
+            ${{ secrets.PUBLIC_IDENTIFIER_DENYLIST }}
+        run: python3 scripts/ci/check-public-identifiers.py

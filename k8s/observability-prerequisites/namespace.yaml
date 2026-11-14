@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: food-delivery
+    food-delivery/environment: dev
+  annotations:
+    food-delivery/owner: project-operator
+    food-delivery/approval: separate-deployment-approval-required

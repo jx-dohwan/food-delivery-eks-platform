@@ -1,0 +1,12 @@
+# Dev-only private, volatile transport; no Service/Ingress/Secret is added.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: was-config
+  namespace: app
+data:
+  DEV_EMAIL_CAPTURE_ENABLED: "false"
+  DEV_EMAIL_CAPTURE_ADDRESS_SHA256: ""
+  DEV_EMAIL_CAPTURE_ORIGIN: ""
+  SKIP_EMAIL_NOTIFICATION: "true"
+  AUTO_VERIFY_USERS: "false"

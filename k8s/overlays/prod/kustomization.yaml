@@ -1,0 +1,55 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: app-prod
+
+resources:
+  - ../../base
+
+patches:
+  - path: runtime-network-patch.json
+    target:
+      kind: NetworkPolicy
+      name: (was-dependencies|migration-database)
+  - path: tracing-irsa-patch.yaml
+  - path: was-irsa-patch.yaml
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: was-deployment
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: Namespace
+      name: app
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: app-prod
+      - op: add
+        path: /metadata/labels/environment
+        value: prod
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      name: main-ingress
+  - path: configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: was-config
+  - path: hpa-patch.yaml
+    target:
+      kind: HorizontalPodAutoscaler
+      name: was-hpa
+  - path: runtime-bindings-patch.yaml
+
+images:
+  - name: food-delivery-was
+    newName: ecr-registry.invalid/was
+    newTag: ffa32ee974e7c460419250864b9524aa4d571212
+  - name: food-delivery-web
+    newName: ecr-registry.invalid/web
+    newTag: ffa32ee974e7c460419250864b9524aa4d571212

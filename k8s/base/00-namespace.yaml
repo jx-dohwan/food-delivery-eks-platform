@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  labels:
+    name: app
+    elbv2.k8s.aws/pod-readiness-gate-inject: enabled
+    # EKS Pod Security Standards (restricted 프로파일 적용)
+    # PSS restricted 적용 - 강제 차단
+    # 파드가 최상위 보안 기분(Non-Root, 권한 상승 금지 등)을 위반하면 배포 자체를 즉시 거부함
+    pod-security.kubernetes.io/enforce: restricted
+    # PSS restricted 적용 - 감사 로그
+    # 보안 기준을 위반하는 파드가 요청되면 쿠버네티스 감사(Audit) 로그에 기록
+    pod-security.kubernetes.io/audit: restricted
+    # Pss restricted 적용 - 사용자 경고
+    # 보안 기준을 위반하는 리소스를 kubectl apply 할 때 터미널 경고 메시지 출력
+    pod-security.kubernetes.io/warn: restricted

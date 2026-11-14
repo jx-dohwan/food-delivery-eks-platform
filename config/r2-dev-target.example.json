@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "account_id": "123456789012",
+  "profile": "my-profile",
+  "region": "ap-northeast-2",
+  "cluster_name": "cluster",
+  "workspace": "default",
+  "archive_bucket": "food-delivery-loki-123456789012-ap-northeast-2-dev",
+  "archive_backend": {
+    "bucket": "example-terraform-state-bucket",
+    "key": "terraform/logging-archive/dev/terraform.tfstate",
+    "region": "ap-northeast-2",
+    "profile": "my-profile",
+    "encrypt": true,
+    "use_lockfile": true,
+    "allowed_account_ids": [
+      "123456789012"
+    ]
+  },
+  "dev_variables": {
+    "region": "ap-northeast-2",
+    "owner": "",
+    "project_name": "food-delivery",
+    "environment": "dev",
+    "enable_oss_observability": true,
+    "enable_central_logging": true,
+    "mng_instance_type": "t3.large",
+    "mng_max_size": 2,
+    "enable_karpenter": true,
+    "enable_waf": true,
+    "waf_count_mode": true,
+    "waf_rate_limit": 6000,
+    "enable_ops_monitoring": true,
+    "enable_secret_rotation": true,
+    "activate_secret_rotation": false,
+    "manage_ingress_alb_alias": false,
+    "manage_www_record": false,
+    "alb_target_group_arn_suffix": "",
+    "metrics_server_kubelet_tls_verified": false,
+    "enable_sg_auto_remediation": false,
+    "was_aws_access": {
+      "s3": {
+        "bucket_name": "food-delivery-dev-uploads-example",
+        "encryption": "AES256"
+      }
+    },
+    "allowed_account_ids": [
+      "123456789012"
+    ],
+    "terraform_state_bucket_name": "example-terraform-state-bucket",
+    "route53_zone_name": "example.com",
+    "dev_domain_name": "dev.example.com",
+    "www_domain_name": "www.example.com"
+  },
+  "required_private_environment": [
+    "TF_VAR_karpenter_ami_id",
+    "TF_VAR_karpenter_ami_verified",
+    "TF_VAR_slack_webhook_url"
+  ],
+  "alertmanager": {
+    "namespace": "monitoring",
+    "secret_name": "logging-alerts",
+    "secret_key": "slack-webhook",
+    "supplier": "operator-create-only-from-environment",
+    "supply_before": "helm_release.observability",
+    "app_argocd_manages_secret": false
+  },
+  "ingress_certificate_arn": "arn:aws:acm:ap-northeast-2:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+}

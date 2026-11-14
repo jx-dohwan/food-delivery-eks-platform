@@ -1,0 +1,182 @@
+# ==============================================================================
+# 1. 루트 특정 디렉터리 및 Git 백업/임시 폴더
+# ==============================================================================
+/ex10-tot/
+
+# Git 백업 및 마이그레이션 아티팩트
+**/.git.upstream-backup/
+**/.git.backup/
+*.bak
+*.backup
+
+# ==============================================================================
+# 2. Node.js / NestJS / Vite / TypeScript
+# ==============================================================================
+# 의존성 패키지
+**/node_modules/
+
+# 빌드 산출물
+**/dist/
+**/build/
+dist-ssr/
+*.local
+
+# TypeScript 증분 컴파일 캐시
+*.tsbuildinfo
+tsconfig.build.tsbuildinfo
+
+# 로그 및 디버깅 파일
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# 테스트 및 커버리지
+**/coverage/
+.nyc_output/
+
+# 임시 캐시 및 프로세스 ID
+.eslintcache
+.stylelintcache
+.turbo/
+.temp/
+.tmp/
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ==============================================================================
+# 3. 환경 변수 및 보안 자격 증명 (CRITICAL)
+# ==============================================================================
+# 모든 .env 계열 파일 차단 (예시 파일 제외)
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+!**/dotenv/.env.example
+
+# 인증서, 프라이빗 키 및 AWS 로컬 자격 증명
+*.pem
+!infra/modules/secrets_manager/rotation/rds-ca-bundle.pem
+*.key
+*.crt
+.aws/
+
+# ==============================================================================
+# 4. Terraform
+# ==============================================================================
+# 로컬 플러그인 캐시 및 실행 바이너리
+**/.terraform/
+
+# 상태 파일 (민감 정보 평문 저장 방지)
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# 로컬 변수 주입 파일 (예시 파일 제외)
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+!*.tfvars.example
+!**/*.tfvars.example
+
+# 로컬 오버라이드 파일
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# 프로바이더 락 파일은 버전 고정을 위해 Git에 보존
+!**/.terraform.lock.hcl
+
+# ==============================================================================
+# 5. Kubernetes / Kustomize 로컬 임시 산출물
+# ==============================================================================
+# 로컬 렌더링 확인용 임시 출력 파일 (소스 kustomization.yaml 은 Git 추적 유지)
+*.rendered.yaml
+*.kustomize.tmp
+kubeconfig*
+!kubeconfig.example
+
+# ==============================================================================
+# 6. Python
+# ==============================================================================
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+
+# ==============================================================================
+# 7. OS 및 IDE 설정
+# ==============================================================================
+# OS 생성 쓰레기 파일
+.DS_Store
+**/.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# JetBrains / 기타 에디터
+.idea/
+**/.idea/
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# VSCode (팀 공용 설정 제외한 개인 임시 파일 차단)
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+# Terraform Local State
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Local Test Scripts & Env
+verify_all.sh
+*.env
+
+# Study material (blog, guides, notes) stays local; the repository holds code only.
+/docs/
+/app/coupang_eats_backend_v2/doc/
+# Local operational notes are stored outside the published source tree.
+/notes/
+/reports/
+
+# --- Private, account-specific inputs (examples are committed instead) ---
+config/r2-dev-target.json
+config/public-identifier-denylist.txt
+infra/environments/dev/backend.hcl
+infra/logging-archive/backend.r2.hcl
+.generated/
+/rendered/
+/.worktrees/
+/.local-evidence/
+*.tfplan
+*.plan
+
+# --- Personal / live-environment helper scripts (kept locally, never published) ---
+scripts/dev-auth-browser-e2e.mjs
+scripts/seed-demo-data.sh
+scripts/stress-signup.sh
+scripts/test-signup-flow.sh
+scripts/waf-demo.sh
+config/prod-target.json
+infra/environments/prod/backend.hcl

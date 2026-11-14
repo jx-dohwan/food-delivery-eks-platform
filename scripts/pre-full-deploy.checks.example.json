@@ -1,0 +1,23 @@
+{
+  "environment": "dev",
+  "checked_at": "",
+  "state_and_account_reviewed": false,
+  "addon_versions_verified": false,
+  "cost_estimate_reviewed": false,
+  "old_slack_webhook_revoked": false,
+  "new_slack_webhook_configured": false,
+  "slack_test_exception": {
+    "acknowledge_exposed_webhook": false,
+    "test_only_notifications": false,
+    "rotate_after_tests": false,
+    "expires_at": ""
+  },
+  "application_resources_verified": false,
+  "metrics_tls_verified": false,
+  "collector_image_config_validated": false,
+  "teardown_dry_run_reviewed": false,
+  "ingress_certificate_verified": false,
+  "image_build_verified": false,
+  "karpenter_offerings_price_verified": false,
+  "prod_state_storage_and_database_reviewed": false
+}

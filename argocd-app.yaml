@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: food-delivery-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    # Read-only, repository-scoped Deploy Key is provisioned as an ArgoCD
+    # repository Secret. The private key must never be committed to Git.
+    repoURL: 'git@github.com:jx-dohwan/food-delivery-eks-platform.git'
+    targetRevision: main
+    path: k8s/overlays/dev
+    # Account-specific values are not in Git: scripts/render-argocd-application.py adds
+    # spec.source.kustomize (images with :*, patches) from Terraform outputs at deploy time.
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  # Only the HPA owns the live WAS replica count. Keep image/template drift visible.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: was-deployment
+      namespace: app
+      jsonPointers:
+        - /spec/replicas
+  syncPolicy:
+    automated:
+      prune: true     # Git에서 삭제된 리소스는 클러스터에서도 자동 삭제
+      selfHeal: true  # 클러스터 내 수동 변경(Drift) 발생 시 Git 형상으로 자동 원복
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true

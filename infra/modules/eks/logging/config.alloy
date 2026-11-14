@@ -1,0 +1,56 @@
+logging {
+  level = "warn"
+  format = "json"
+}
+// Static CRI paths cover existing and newly created nodes without Kubernetes API access.
+local.file_match "app" {
+  path_targets = [
+    {__path__ = "/var/log/pods/" + sys.env("LOG_NAMESPACE") + "_*/was/*.log", environment = "dev", cluster = sys.env("CLUSTER_NAME"), namespace = sys.env("LOG_NAMESPACE"), service = "was", container = "was"},
+    {__path__ = "/var/log/pods/" + sys.env("LOG_NAMESPACE") + "_*/web/*.log", environment = "dev", cluster = sys.env("CLUSTER_NAME"), namespace = sys.env("LOG_NAMESPACE"), service = "web", container = "web"},
+  ]
+  sync_period = "5s"
+}
+loki.source.file "app" {
+  targets = local.file_match.app.targets
+  forward_to = [loki.process.safe.receiver]
+  tail_from_end = false
+}
+loki.process "safe" {
+  forward_to = [loki.write.central.receiver]
+  stage.cri {}
+  stage.regex {
+    source = "filename"
+    expression = "/var/log/pods/[^_]+_(?P<pod_name>[^_]+)_[^/]+/[^/]+/[^/]+$"
+  }
+  stage.json {
+    expressions = { phase = "phase", timestamp = "timestamp", event = "event", level = "level", service = "service", environment = "environment", message = "message", request_id = "request_id", trace_id = "trace_id", span_id = "span_id", http_method = "http_method", http_route = "http_route", status_code = "status_code", duration_ms = "duration_ms", duration_seconds = "duration_seconds", error_code = "error_code", error_type = "error_type", deployment_version = "deployment_version" }
+    drop_malformed = true
+  }
+  stage.labels { values = { event = "" } }
+  stage.match {
+    selector = "{event!~\"(http\\\\.exception|http\\\\.completed|http\\\\.failed|auth\\\\.succeeded|auth\\\\.failed|access\\\\.denied|database\\\\.failed|database\\\\.slow|database\\\\.ready|redis\\\\.failed|redis\\\\.ready|s3\\\\.uploaded|s3\\\\.failed|ses\\\\.accepted|ses\\\\.failed|application\\\\.started|application\\\\.stopping|application\\\\.notice|application\\\\.failed|framework\\\\.notice|framework\\\\.failed)\"}"
+    action = "drop"
+    drop_counter_reason = "noncanonical"
+  }
+  stage.template {
+    source = "canonical"
+    template = "{{- $r := dict \"timestamp\" .timestamp \"event\" .event \"level\" .level \"service\" .service \"environment\" .environment \"message\" (get (dict \"http.exception\" \"HTTP exception handled\" \"http.completed\" \"HTTP request completed\" \"http.failed\" \"HTTP request failed\" \"auth.succeeded\" \"Authentication operation succeeded\" \"auth.failed\" \"Authentication operation rejected\" \"access.denied\" \"Resource access denied\" \"database.failed\" \"Database operation failed\" \"database.slow\" \"Database operation exceeded threshold\" \"database.ready\" \"Database initialization completed\" \"redis.failed\" \"Cache operation failed\" \"redis.ready\" \"Cache connection ready\" \"s3.uploaded\" \"Private object uploaded\" \"s3.failed\" \"Private object upload failed\" \"ses.accepted\" \"Email service accepted request\" \"ses.failed\" \"Email service request failed\" \"application.started\" \"Application started\" \"application.stopping\" \"Application shutdown started\" \"application.notice\" \"Application diagnostic event\" \"application.failed\" \"Application operation failed\" \"framework.notice\" \"Framework lifecycle event\" \"framework.failed\" \"Framework operation failed\") .event) -}}{{- if .request_id -}}{{- $_ := set $r \"request_id\" .request_id -}}{{- end -}}{{- if .trace_id -}}{{- $_ := set $r \"trace_id\" .trace_id -}}{{- end -}}{{- if .span_id -}}{{- $_ := set $r \"span_id\" .span_id -}}{{- end -}}{{- if .http_method -}}{{- $_ := set $r \"http_method\" .http_method -}}{{- end -}}{{- if .http_route -}}{{- $_ := set $r \"http_route\" .http_route -}}{{- end -}}{{- if .status_code -}}{{- $_ := set $r \"status_code\" (.status_code | int) -}}{{- end -}}{{- if .error_code -}}{{- $_ := set $r \"error_code\" .error_code -}}{{- end -}}{{- if .error_type -}}{{- $_ := set $r \"error_type\" .error_type -}}{{- end -}}{{- if .deployment_version -}}{{- $_ := set $r \"deployment_version\" .deployment_version -}}{{- end -}}{{- if ne .duration_ms nil -}}{{- $_ := set $r \"duration_ms\" .duration_ms -}}{{- else if ne .duration_seconds nil -}}{{- $_ := set $r \"duration_ms\" (mulf .duration_seconds 1000 | float64) -}}{{- end -}}{{- if has .phase (list \"startup\" \"connect\" \"query\" \"health\") -}}{{- $_ := set $r \"phase\" .phase -}}{{- end -}}{{- $r | toJson -}}"
+  }
+  stage.output { source = "canonical" }
+  // Source-side positive schema is primary; this discards unknown JSON fields too.
+  stage.structured_metadata { values = { pod_name = "", deployment_version = "" } }
+  stage.label_drop { values = ["pod_name", "filename", "stream", "flags"] }
+  stage.label_keep { values = ["environment", "cluster", "namespace", "service", "container"] }
+}
+loki.write "central" {
+  endpoint {
+    url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+    batch_wait = "1s"
+    batch_size = "256KiB"
+    remote_timeout = "10s"
+    min_backoff_period = "500ms"
+    max_backoff_period = "10s"
+    max_backoff_retries = 10
+  }
+  // Experimental WAL is deliberately disabled. Retries are bounded, not durable.
+}

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: food-delivery-karpenter-capacity
+description: One private on-demand application NodePool and EC2NodeClass
+type: application
+version: 0.1.0

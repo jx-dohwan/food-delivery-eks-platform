@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local preparation preview only. ArgoCD still targets overlays/dev.
+# Do not publish/sync this overlay without explicit deployment-scope approval.
+resources:
+- ../dev
+
+patches:
+- target:
+    kind: ConfigMap
+    name: was-config
+  patch: |-
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: was-config
+      namespace: app
+    data:
+      SKIP_EMAIL_NOTIFICATION: "true"
+      AWS_SES_SENDER_EMAIL: ""

@@ -1,0 +1,36 @@
+services:
+  mysql-dev:
+    image: mysql:8
+    ports:
+      - '127.0.0.1:3306:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_MYSQL_ROOT_PASSWORD:?Set LOCAL_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: coupang_dev
+      MYSQL_USER: test
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+
+  mysql-test:
+    image: mysql:8
+    ports:
+      - '127.0.0.1:3307:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LOCAL_MYSQL_ROOT_PASSWORD:?Set LOCAL_MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: coupang_test
+      MYSQL_USER: test
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_dev_data:
+  mysql_test_data:
+  redis_data:

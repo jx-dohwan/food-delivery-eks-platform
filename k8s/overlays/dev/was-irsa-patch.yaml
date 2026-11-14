@@ -1,0 +1,19 @@
+# Placeholder only: the real value is injected at deploy time by scripts/render-argocd-application.py.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: food-delivery-was
+  namespace: app
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::000000000000:role/injected-at-deploy-was"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: was-config
+  namespace: app
+data:
+  AWS_REGION: "ap-northeast-2"
+  AWS_S3_BUCKET_NAME: "injected-at-deploy"
+  AWS_SES_SENDER_EMAIL: ""
+  SKIP_EMAIL_NOTIFICATION: "true"

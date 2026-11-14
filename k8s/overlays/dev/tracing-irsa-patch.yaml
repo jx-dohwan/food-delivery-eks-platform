@@ -1,0 +1,8 @@
+# Placeholder only: the real value is injected at deploy time by scripts/render-argocd-application.py.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: adot-collector
+  namespace: app
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::000000000000:role/injected-at-deploy-adot"

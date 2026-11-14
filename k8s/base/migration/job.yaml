@@ -1,0 +1,118 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: was-db-migration
+  namespace: app
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: was-migration
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migration
+          image: food-delivery-was:ffa32ee974e7c460419250864b9524aa4d571212
+          command: ["node", "-e"]
+          args:
+            - |
+              const fs = require('fs');
+              const mysql = require('mysql2/promise');
+              const { spawnSync } = require('child_process');
+              const keys = ['DB_HOST', 'DB_PORT', 'DB_USER_NAME', 'DB_PASSWORD', 'DB_DATABASE'];
+              const delay = () => new Promise(resolve => setTimeout(resolve, 5000));
+
+              (async () => {
+                const deadline = Date.now() + 300000;
+                while (Date.now() < deadline) {
+                  let connection;
+                  let dbEnv;
+                  try {
+                    // Secret volume updates are visible here even if envFrom is stale.
+                    dbEnv = Object.fromEntries(keys.map(key => {
+                      const value = fs.readFileSync(`/var/run/db-secret/${key}`, 'utf8');
+                      if (!value) throw new Error(`Missing Secret key: ${key}`);
+                      return [key, value];
+                    }));
+                    // Reject the old Aurora host during endpoint transitions.
+                    if (!/\.proxy-[^.]+\./.test(dbEnv.DB_HOST)) {
+                      throw new Error('DB_HOST is not an RDS Proxy endpoint');
+                    }
+                    connection = await mysql.createConnection({
+                      host: dbEnv.DB_HOST,
+                      port: Number(dbEnv.DB_PORT),
+                      user: dbEnv.DB_USER_NAME,
+                      password: dbEnv.DB_PASSWORD,
+                      database: dbEnv.DB_DATABASE,
+                      ssl: process.env.DB_TLS === 'true' ? { rejectUnauthorized: true } : undefined,
+                      connectTimeout: 10000
+                    });
+                    await connection.query('SELECT 1');
+                  } catch (error) {
+                    console.log(`Waiting for DB Secret/Proxy: ${error.code || error.name}`);
+                    if (connection) await connection.end().catch(() => {});
+                    await delay();
+                    continue;
+                  }
+                  await connection.end();
+                  console.log('DB Secret and Proxy ready; running migrations');
+                  const result = spawnSync(process.execPath, [
+                    './node_modules/typeorm/cli.js', 'migration:run', '-d', 'dist/src/data-source.js'
+                  ], { stdio: 'inherit', env: { ...process.env, ...dbEnv } });
+                  if (result.error) throw result.error;
+                  return process.exit(result.status === null ? 1 : result.status);
+                }
+                throw new Error('DB Secret/Proxy readiness timed out after 300 seconds');
+              })().catch(error => {
+                console.error(error.code || error.message);
+                process.exit(1);
+              });
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: was-config
+            - secretRef:
+                name: was-db-secret
+          volumeMounts:
+            - name: db-secret
+              mountPath: /var/run/db-secret
+              readOnly: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "250m"
+              memory: "512Mi"
+      volumes:
+        - name: db-secret
+          secret:
+            secretName: was-db-secret
+            optional: false
+            items:
+              - key: DB_HOST
+                path: DB_HOST
+              - key: DB_PORT
+                path: DB_PORT
+              - key: DB_USER_NAME
+                path: DB_USER_NAME
+              - key: DB_PASSWORD
+                path: DB_PASSWORD
+              - key: DB_DATABASE
+                path: DB_DATABASE
